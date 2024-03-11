@@ -1,0 +1,188 @@
+Program.Sub.ScreenSU.Start
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+'Coded by AGM 12/10/2014
+'Quote 5953-4
+
+V.Local.sError.Declare(String)
+
+F.Intrinsic.Control.SelectCase(V.Caller.Hook)
+
+
+	F.Intrinsic.Control.Case(11565)
+		'Sets Order Date to Global Variable.
+		V.Passed.GLOBAL.Set(V.Passed.000023)
+	F.Intrinsic.Control.Case(11872)
+		'If Order Date has been adjusted, when the Post Save Hook is fired... the Core Global Variable will retain the new order date value.
+		V.Passed.GLOBAL.Set(V.Passed.000023)
+	F.Intrinsic.Control.Case(12120)
+		F.Intrinsic.Control.CallSub(Ordentrsub)
+	F.Intrinsic.Control.Case(10870)
+		V.Passed.GLOBAL.Set(V.Passed.000023)
+	F.Intrinsic.Control.Case(10370)
+		F.Intrinsic.Control.CallSub(Quickquotesub)
+
+F.Intrinsic.Control.EndSelect
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4068_Date_And_LeadTime.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Main.End
+
+Program.Sub.OrdEntrSub.Start
+F.Intrinsic.Control.SetErrorHandler("OrdEntrSub_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.iLong.Declare(Long)
+V.Local.iAvail.Declare(Long)
+V.Local.dDate.Declare(String)
+V.Local.dDateRet.Declare(String)
+V.Local.sRet.Declare(String)
+V.Local.sPart.Declare(String)
+
+'12/9/2014
+'Call info Date shows up as 20141202
+
+V.Local.sSQL.Declare(String)
+
+F.ODBC.Connection!conx.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+F.Intrinsic.String.GSSPartString(V.Passed.000052,V.Passed.000053,V.Local.sPart)
+'Calculates and displays Available Qty
+F.Intrinsic.String.Build("SELECT TIME_MATERIAL_LEAD, (QTY_ONHAND-QTY_REQUIRED) AS AVAILABLE_QTY FROM INVENTORY_MSTR WHERE PART = '{0}'",V.Local.sPart,V.Local.sSQL)
+'F.Intrinsic.String.Build("SELECT TIME_MATERIAL_LEAD, (QTY_ONHAND-QTY_REQUIRED) AS AVAILABLE_QTY FROM INVENTORY_MSTR WHERE PART = '{0}'",V.Passed.000052,V.Local.sSQL)
+F.ODBC.Connection!conx.OpenLocalRecordsetRO("rst",V.Local.sSQL)
+
+F.Intrinsic.Control.If(V.ODBC.conx!rst.EOF,=,False)
+
+	F.Intrinsic.Control.If(V.ODBC.conx!rst.FieldValTrim!AVAILABLE_QTY,=,"")
+		V.Local.iAvail.Set(0)
+	F.Intrinsic.Control.Else
+		V.Local.iAvail.Set(V.ODBC.conx!rst.FieldValTrim!AVAILABLE_QTY)
+	F.Intrinsic.Control.EndIf
+
+	'If Order Qty is less than or equal to Available Qty, then the Order Date will be set in the Promise Date Field
+	F.Intrinsic.Control.If(V.Passed.000007,=<,V.Local.iAvail)
+		V.Local.dDate.Set(V.Passed.GLOBAL)
+		F.Intrinsic.Date.ConvertDString(V.Local.dDate,"YYYY/MM/DD",V.Local.dDateRet)
+		V.Passed.000011.Set(V.Local.dDateRet)
+		
+	'If Order Qty is MORE than Available Qty, then add the lead days to Promise Date
+	F.Intrinsic.Control.ElseIf(V.Passed.000007,>,V.Local.iAvail)
+
+		F.Intrinsic.Control.If(V.ODBC.conx!rst.FieldValTrim!TIME_MATERIAL_LEAD,=,"")
+			V.Local.iLong.set(0)
+		F.Intrinsic.Control.Else
+			V.Local.iLong.Set(V.ODBC.conx!rst.FieldValTrim!TIME_MATERIAL_LEAD)
+		F.Intrinsic.Control.EndIf
+
+		V.Local.dDate.Set(V.Passed.GLOBAL)
+		F.Intrinsic.Date.ConvertDString(V.Local.dDate,"YYYY/MM/DD",V.Local.dDateRet)
+		F.Intrinsic.Date.DateAdd("D",V.Local.iLong,V.Local.dDateRet,V.Local.dDateRet)
+		V.Passed.000011.Set(V.Local.dDateRet)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+F.ODBC.conx!rst.Close
+F.ODBC.Connection!conx.Close
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("OrdEntrSub_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4068_Date_And_LeadTime.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.OrdEntrSub.End
+
+Program.Sub.QuickQuoteSub.Start
+F.Intrinsic.Control.SetErrorHandler("OrdEntrSub_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.iLong.Declare(Long)
+V.Local.iAvail.Declare(Long)
+V.Local.dDate.Declare(String)
+V.Local.dDateRet.Declare(String)
+V.Local.sRet.Declare(String)
+V.Local.sPart.Declare(String)
+'12/9/2014
+'Call info Date shows up as 20141202
+
+V.Local.sSQL.Declare(String)
+
+F.ODBC.Connection!conx.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+F.Intrinsic.String.GSSPartString(V.Passed.000052,V.Passed.000053,V.Local.sPart)
+'Calculates and displays Available Qty
+'F.Intrinsic.String.Build("SELECT TIME_MATERIAL_LEAD, (QTY_ONHAND-QTY_REQUIRED) AS AVAILABLE_QTY FROM INVENTORY_MSTR WHERE PART = '{0}'",V.Passed.000052,V.Local.sSQL)
+F.Intrinsic.String.Build("SELECT TIME_MATERIAL_LEAD, (QTY_ONHAND-QTY_REQUIRED) AS AVAILABLE_QTY FROM INVENTORY_MSTR WHERE PART = '{0}'",V.Local.sPart,V.Local.sSQL)
+
+F.ODBC.Connection!conx.OpenLocalRecordsetRO("rst",V.Local.sSQL)
+F.Intrinsic.Control.If(V.ODBC.conx!rst.EOF,=,False)
+	F.Intrinsic.Control.If(V.ODBC.conx!rst.FieldValTrim!AVAILABLE_QTY,=,"")
+		V.Local.iAvail.Set(0)
+	F.Intrinsic.Control.Else
+		V.Local.iAvail.Set(V.ODBC.conx!rst.FieldValTrim!AVAILABLE_QTY)
+	F.Intrinsic.Control.EndIf
+
+
+		'If Order Qty is less than or equal to Available Qty, then the Order Date will be set in the Promise Date Field
+		F.Intrinsic.Control.If(V.Passed.000007,=<,V.Local.iAvail)
+			V.Local.dDate.Set(V.Passed.GLOBAL)
+			F.Intrinsic.Date.ConvertDString(V.Local.dDate,"MM/DD/YY",V.Local.dDateRet)
+			V.Passed.000011.Set(V.Local.dDateRet)
+			
+		'If Order Qty is MORE than Available Qty, then add the lead days to Promise Date
+		F.Intrinsic.Control.ElseIf(V.Passed.000007,>,V.Local.iAvail)
+
+			F.Intrinsic.Control.If(V.ODBC.conx!rst.FieldValTrim!TIME_MATERIAL_LEAD,=,"")
+				V.Local.iLong.set(0)
+			F.Intrinsic.Control.Else
+				V.Local.iLong.Set(V.ODBC.conx!rst.FieldValTrim!TIME_MATERIAL_LEAD)
+			F.Intrinsic.Control.EndIf
+
+			V.Local.dDate.Set(V.Passed.GLOBAL)
+			F.Intrinsic.Date.ConvertDString(V.Local.dDate,"MM/DD/YY",V.Local.dDateRet)
+			F.Intrinsic.Date.DateAdd("D",V.Local.iLong,V.Local.dDateRet,V.Local.dDateRet)
+			V.Passed.000011.Set(V.Local.dDateRet)
+
+		F.Intrinsic.Control.EndIf
+	
+F.Intrinsic.Control.EndIf
+
+F.ODBC.conx!rst.Close
+F.ODBC.Connection!conx.Close
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("OrdEntrSub_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4068_Date_And_LeadTime.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+
+Program.Sub.QuickQuoteSub.End
+
+Program.Sub.Comments.Start
+${$0$}$$}$AGM$}$12/9/2014 1:03:59 PM
+Program.Sub.Comments.End
+
